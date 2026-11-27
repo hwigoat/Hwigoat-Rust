@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Prepare 1.1.0 source and branding
+      - name: Prepare 1.1.1 source and branding
         run: |
           python -m pip install pillow
           if ($LASTEXITCODE -ne 0) { throw 'Pillow install failed' }
@@ -53,6 +53,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '1.0.8 source preparation failed' }
           python ci/prepare_110.py work
           if ($LASTEXITCODE -ne 0) { throw '1.1.0 source preparation failed' }
+          python ci/prepare_111.py work
+          if ($LASTEXITCODE -ne 0) { throw '1.1.1 source preparation failed' }
           python -m py_compile work/test_ui.py work/make_brand.py
           if ($LASTEXITCODE -ne 0) { throw 'Generated Python syntax check failed' }
           python work/make_brand.py
