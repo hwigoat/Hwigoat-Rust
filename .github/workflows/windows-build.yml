@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Prepare 1.0.4 source and branding
+      - name: Prepare 1.0.5 source and branding
         run: |
           python -m pip install pillow
           if ($LASTEXITCODE -ne 0) { throw 'Pillow install failed' }
@@ -43,6 +43,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Source preparation failed' }
           python ci/prepare_104.py work
           if ($LASTEXITCODE -ne 0) { throw '1.0.4 source preparation failed' }
+          python ci/prepare_105.py work
+          if ($LASTEXITCODE -ne 0) { throw '1.0.5 source preparation failed' }
           python work/make_brand.py
           if ($LASTEXITCODE -ne 0) { throw 'Resource build failed' }
       - name: Rust tests and optimized binary
@@ -109,7 +111,7 @@ jobs:
             work/preview.png
           if-no-files-found: error
   draft:
-    if: github.event_name == 'workflow_dispatch' && inputs.draft_release && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.draft_release))
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -140,4 +142,8 @@ jobs:
           REPO: ${{ github.repository }}
           COMMIT: ${{ github.sha }}
         run: |
+          if gh release view "v$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists; leaving all assets untouched. Bump version to publish a new update."
+            exit 0
+          fi
           gh release create "v$VERSION" dist/*.exe dist/SHA256.txt dist/Cargo.lock dist/update.json dist/update.sig --repo "$REPO" --target "$COMMIT" --title "Hwigoat Rust $VERSION Public Beta" --draft --prerelease --notes "Signed update manifest. Installer is not Authenticode signed. Validate native installation, login and updates on Windows before publishing."
