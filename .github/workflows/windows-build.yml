@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Prepare 1.0.8 source and branding
+      - name: Prepare 1.1.0 source and branding
         run: |
           python -m pip install pillow
           if ($LASTEXITCODE -ne 0) { throw 'Pillow install failed' }
@@ -51,8 +51,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '1.0.7 source preparation failed' }
           python ci/prepare_108.py work
           if ($LASTEXITCODE -ne 0) { throw '1.0.8 source preparation failed' }
+          python ci/prepare_110.py work
+          if ($LASTEXITCODE -ne 0) { throw '1.1.0 source preparation failed' }
+          python -m py_compile work/test_ui.py work/make_brand.py
+          if ($LASTEXITCODE -ne 0) { throw 'Generated Python syntax check failed' }
           python work/make_brand.py
           if ($LASTEXITCODE -ne 0) { throw 'Resource build failed' }
+      - name: Chromium UI regression and mouse gesture tests
+        working-directory: work
+        run: |
+          python -m pip install playwright
+          if ($LASTEXITCODE -ne 0) { throw 'Playwright install failed' }
+          python -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Chromium install failed' }
+          python test_ui.py
+          if ($LASTEXITCODE -ne 0) { throw 'UI tests failed' }
       - name: Rust tests and optimized binary
         working-directory: work/project
         run: |
@@ -66,15 +79,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed' }
           cargo +stable build --locked --release --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE -ne 0) { throw 'Rust build failed' }
-      - name: Chromium UI regression and mouse gesture tests
-        working-directory: work
-        run: |
-          python -m pip install playwright
-          if ($LASTEXITCODE -ne 0) { throw 'Playwright install failed' }
-          python -m playwright install chromium
-          if ($LASTEXITCODE -ne 0) { throw 'Chromium install failed' }
-          python test_ui.py
-          if ($LASTEXITCODE -ne 0) { throw 'UI tests failed' }
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24.x'
@@ -108,6 +112,18 @@ jobs:
         with:
           name: Hwigoat-Rust-Windows-x64
           path: work/dist/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hwigoat-Rust-generated-source
+          path: |
+            work/project/Cargo.toml
+            work/project/Cargo.lock
+            work/project/src/
+            work/project/build.rs
+            work/*.go
+            work/test_ui.py
+            work/make_brand.py
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
