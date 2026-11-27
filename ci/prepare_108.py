@@ -211,7 +211,7 @@ tabStrip.addEventListener('scroll',geometryChanged,{passive:true});
 ("if(s.panel&&listKey!==JSON.stringify([s.bookmarks,s.history,$('filter').value.toLowerCase()]))lists()};","if(s.panel&&listKey!==JSON.stringify([s.bookmarks,s.history,$('filter').value.toLowerCase()]))lists();geometryChanged()};",1)
 ])
 edit('test_ui.py',[
-("window.messages=[];window.ipc={postMessage:s=>window.messages.push(JSON.parse(s))};","window.messages=[];window.telemetry=[];window.ipc={postMessage:s=>{const m=JSON.parse(s);(['tab_geometry','drag_hover','drag_cancel'].includes(m.action)?telemetry:messages).push(m)}};",1),
+("window.messages=[];window.ipc={postMessage:s=>window.messages.push(JSON.parse(s))};","window.messages=[];window.telemetry=[];window.ipc={postMessage:s=>{const m=JSON.parse(s);([\"tab_geometry\",\"drag_hover\",\"drag_cancel\"].includes(m.action)?telemetry:messages).push(m)}};",1),
 ("# Dragging back into the strip cancels tear-off.","# Returning to the strip requests an in-window drop (native decides reorder/no-op).",1),
 ("    assert page.evaluate('messages.length')==0\n    t.click()\n    assert page.evaluate('messages.map(m=>m.action)')==['select']","    assert page.evaluate('messages.map(m=>m.action)')==['detach_tab']\n    assert page.evaluate('messages.at(-1).value')=='inside'\n    page.evaluate('messages.length=0')\n    t.click()\n    assert page.evaluate('messages.map(m=>m.action)')==['select']",1),
 ("    page.locator('#address').fill('test query')",'''    # Geometry telemetry and a native-requested docking indicator.
