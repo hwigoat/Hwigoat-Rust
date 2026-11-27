@@ -146,4 +146,9 @@ jobs:
             echo "Release v$VERSION already exists; leaving all assets untouched. Bump version to publish a new update."
             exit 0
           fi
-          gh release create "v$VERSION" dist/*.exe dist/SHA256.txt dist/Cargo.lock dist/update.json dist/update.sig --repo "$REPO" --target "$COMMIT" --title "Hwigoat Rust $VERSION Public Beta" --draft --prerelease --notes "Signed update manifest. Installer is not Authenticode signed. Validate native installation, login and updates on Windows before publishing."
+          notes="release-notes/v$VERSION.md"
+          if [ ! -s "$notes" ]; then
+            echo "::error::Missing version-specific release notes: $notes"
+            exit 1
+          fi
+          gh release create "v$VERSION" dist/*.exe dist/SHA256.txt dist/Cargo.lock dist/update.json dist/update.sig --repo "$REPO" --target "$COMMIT" --title "Hwigoat Rust $VERSION | Public Beta" --draft --prerelease --notes-file "$notes"

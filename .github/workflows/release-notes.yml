@@ -1,0 +1,36 @@
+name: Sync release notes
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'release-notes/**'
+      - '.github/workflows/release-notes.yml'
+permissions:
+  contents: write
+concurrency:
+  group: release-notes-main
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync descriptions of existing releases only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for notes in release-notes/v*.md; do
+            tag="$(basename "$notes" .md)"
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            if gh release view "$tag" --repo "$REPO" --json tagName >/dev/null 2>&1; then
+              gh release edit "$tag" --repo "$REPO" --title "Hwigoat Rust ${tag#v} | Public Beta" --notes-file "$notes"
+              echo "Synced $tag"
+            else
+              echo "Skipping $tag: no existing release or unavailable"
+            fi
+          done
