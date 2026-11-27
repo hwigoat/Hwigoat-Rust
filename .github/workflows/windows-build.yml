@@ -10,6 +10,8 @@ on:
     branches: [main]
     paths:
       - hwigoat-source.zip
+      - ci/**
+      - .github/workflows/windows-build.yml
 permissions:
   contents: read
 concurrency:
@@ -30,6 +32,17 @@ jobs:
         run: |
           if (!(Test-Path hwigoat-source.zip)) { throw 'Upload the current hwigoat-source.zip to the repository root.' }
           Expand-Archive -LiteralPath hwigoat-source.zip -DestinationPath work
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare 1.0.3 source and branding
+        run: |
+          python -m pip install pillow
+          if ($LASTEXITCODE -ne 0) { throw 'Pillow install failed' }
+          python ci/prepare_103.py work
+          if ($LASTEXITCODE -ne 0) { throw 'Source preparation failed' }
+          python work/make_brand.py
+          if ($LASTEXITCODE -ne 0) { throw 'Resource build failed' }
       - name: Rust tests and optimized binary
         working-directory: work/project
         run: |
@@ -43,9 +56,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed' }
           cargo +stable build --locked --release --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE -ne 0) { throw 'Rust build failed' }
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - name: Chromium UI regression and mouse gesture tests
         working-directory: work
         run: |
@@ -64,6 +74,7 @@ jobs:
         working-directory: work
         env:
           GO111MODULE: 'off'
+          UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
         run: |
           Copy-Item project/target/x86_64-pc-windows-msvc/release/hwigoat-rust.exe prebuilt.exe
           go test ./...
@@ -75,9 +86,11 @@ jobs:
           if (!$v) { throw 'Invalid package version' }
           if (!(Select-String -Path setup.go -SimpleMatch ('const version = "' + $v + '"'))) { throw 'Installer version mismatch' }
           $name = "Hwigoat_Rust_Setup_v${v}_x64.exe"
-          go build -trimpath -ldflags '-s -w' -o "dist/$name" .
+          if ($env:UPDATE_PUBLIC_KEY) { if ([Convert]::FromBase64String($env:UPDATE_PUBLIC_KEY).Length -ne 32) { throw 'Invalid update public key' } }
+          go build -trimpath -ldflags "-s -w -X main.updatePublicKey=$env:UPDATE_PUBLIC_KEY" -o "dist/$name" .
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
           Copy-Item project/Cargo.lock dist/Cargo.lock
+          Set-Content -Encoding ascii -NoNewline dist/update-public-key.txt $env:UPDATE_PUBLIC_KEY
           $hash = (Get-FileHash "dist/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $name" | Set-Content -Encoding ascii dist/SHA256.txt
           "version=$v" >> $env:GITHUB_OUTPUT
@@ -100,10 +113,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: actions/download-artifact@v4
         with:
           name: Hwigoat-Rust-Windows-x64
           path: dist
+      - name: Sign release manifest
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          test -n "$UPDATE_SIGNING_KEY" && test -n "$UPDATE_PUBLIC_KEY"
+          test "$(cat dist/update-public-key.txt)" = "$UPDATE_PUBLIC_KEY"
+          python -m pip install cryptography
+          python ci/sign_release.py "$VERSION" dist
       - name: Create draft only
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,4 +138,4 @@ jobs:
           REPO: ${{ github.repository }}
           COMMIT: ${{ github.sha }}
         run: |
-          gh release create "v$VERSION" dist/*.exe dist/SHA256.txt dist/Cargo.lock --repo "$REPO" --target "$COMMIT" --title "Hwigoat Rust $VERSION Public Beta" --draft --prerelease --notes "Unsigned candidate. Native Windows installation, window gestures and WebView2 smoke test must be verified before publishing. Automatic update is not implemented."
+          gh release create "v$VERSION" dist/*.exe dist/SHA256.txt dist/Cargo.lock dist/update.json dist/update.sig --repo "$REPO" --target "$COMMIT" --title "Hwigoat Rust $VERSION Public Beta" --draft --prerelease --notes "Signed update manifest. Installer is not Authenticode signed. Validate native installation, login and updates on Windows before publishing."
