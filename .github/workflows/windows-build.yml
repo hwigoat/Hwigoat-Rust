@@ -90,7 +90,7 @@ jobs:
           go build -trimpath -ldflags "-s -w -X main.updatePublicKey=$env:UPDATE_PUBLIC_KEY" -o "dist/$name" .
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
           Copy-Item project/Cargo.lock dist/Cargo.lock
-          Set-Content -Encoding ascii -NoNewline dist/update-public-key.txt $env:UPDATE_PUBLIC_KEY
+          [System.IO.File]::WriteAllText((Join-Path (Get-Location) 'dist/update-public-key.txt'), [string]$env:UPDATE_PUBLIC_KEY, [System.Text.Encoding]::ASCII)
           $hash = (Get-FileHash "dist/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $name" | Set-Content -Encoding ascii dist/SHA256.txt
           "version=$v" >> $env:GITHUB_OUTPUT
