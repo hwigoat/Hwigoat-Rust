@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Prepare 1.0.5 source and branding
+      - name: Prepare 1.0.6 source and branding
         run: |
           python -m pip install pillow
           if ($LASTEXITCODE -ne 0) { throw 'Pillow install failed' }
@@ -45,6 +45,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '1.0.4 source preparation failed' }
           python ci/prepare_105.py work
           if ($LASTEXITCODE -ne 0) { throw '1.0.5 source preparation failed' }
+          python ci/prepare_106.py work
+          if ($LASTEXITCODE -ne 0) { throw '1.0.6 source preparation failed' }
           python work/make_brand.py
           if ($LASTEXITCODE -ne 0) { throw 'Resource build failed' }
       - name: Rust tests and optimized binary
