@@ -77,10 +77,8 @@ func writeSmall(root,name,value string)error{
  return moveReplace(path,filepath.Join(root,name))
 }
 func writeInstalledVersion(root,v string)error{return writeSmall(root,"installed-version.txt",v)}
-func installedVersion(root string)string{
- b,e:=os.ReadFile(filepath.Join(root,"installed-version.txt"));if e==nil{v:=strings.TrimSpace(string(b));if _,ok:=parseVersion(v);ok&&newer(v,version){return v}}
- return version
-}
+func recordedVersion(root string)string{b,e:=os.ReadFile(filepath.Join(root,"installed-version.txt"));if e==nil{v:=strings.TrimSpace(string(b));if _,ok:=parseVersion(v);ok{return v}};return ""}
+func installedVersion(root string)string{v:=recordedVersion(root);if newer(v,version){return v};return version}
 func updateStatus(root,s string){_ = writeSmall(root,"update-status.txt",s)}
 func pending(root string,key ed25519.PublicKey,floor string)(manifest,string,error){
  dir:=filepath.Join(root,"pending-update")
