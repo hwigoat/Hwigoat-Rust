@@ -42,8 +42,8 @@ struct NativeThumbnailProperties{flags:u32,destination:NativeRect,source:NativeR
 fn cursor_point()->Option<CursorPoint>{
     let mut p=CursorPoint{x:0,y:0};if unsafe{GetCursorPos(&mut p)}!=0{Some(p)}else{None}
 }
-fn mouse_held()->bool{unsafe{GetAsyncKeyState(0x01)}<0}
-fn escape_held()->bool{unsafe{GetAsyncKeyState(0x1b)}<0}
+fn mouse_held()->bool{(unsafe{GetAsyncKeyState(0x01)})<0}
+fn escape_held()->bool{(unsafe{GetAsyncKeyState(0x1b)})<0}
 fn work_area(p:CursorPoint)->Option<NativeRect>{
     let monitor=unsafe{MonitorFromPoint(p,2)};
     let mut info=NativeMonitorInfo{size:std::mem::size_of::<NativeMonitorInfo>() as u32,monitor:NativeRect::default(),work:NativeRect::default(),flags:0};
