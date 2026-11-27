@@ -32,7 +32,8 @@ Windows x64 및 Microsoft Edge WebView2 Runtime이 필요합니다. 설치기는
 
 | 버전 | 핵심 변경 사항 |
 | --- | --- |
-| [1.0.7](release-notes/v1.0.7.md) | 탭 드래그로 독립 창 분리 (개발 후보) |
+| [1.0.8](release-notes/v1.0.8.md) | 창 간 탭 합치기, 순서 조정 및 가시성 개선 (개발 후보) |
+| [1.0.7](release-notes/v1.0.7.md) | 탭 드래그로 독립 창 분리 |
 | [1.0.6](release-notes/v1.0.6.md) | 독립 창, 창별 탭 및 공통 프로필 관리 |
 | [1.0.5](release-notes/v1.0.5.md) | 마지막 탭 종료, 설정 뒤로가기, 시크릿 탭, 업데이트 개선 |
 | [1.0.4](release-notes/v1.0.4.md) | 주소창 클릭 전체 선택 |
