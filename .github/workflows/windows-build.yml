@@ -1,11 +1,15 @@
 name: Windows precompiled installer
 on:
   workflow_dispatch:
+    inputs:
+      draft_release:
+        description: Create an unpublished draft release after successful build
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
       - hwigoat-source.zip
-      - .github/workflows/windows-build.yml
 permissions:
   contents: read
 concurrency:
@@ -14,7 +18,9 @@ concurrency:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.package.outputs.version }}
     defaults:
       run:
         shell: pwsh
@@ -22,20 +28,39 @@ jobs:
       - uses: actions/checkout@v4
       - name: Extract source
         run: |
-          if (!(Test-Path hwigoat-source.zip)) { throw 'Upload hwigoat-source.zip to repository root first.' }
+          if (!(Test-Path hwigoat-source.zip)) { throw 'Upload the current hwigoat-source.zip to the repository root.' }
           Expand-Archive -LiteralPath hwigoat-source.zip -DestinationPath work
       - name: Rust tests and optimized binary
         working-directory: work/project
         run: |
           rustup toolchain install stable --profile minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Rust setup failed' }
           rustup target add x86_64-pc-windows-msvc --toolchain stable
+          if ($LASTEXITCODE -ne 0) { throw 'Target setup failed' }
           cargo +stable generate-lockfile
-          if ($LASTEXITCODE -ne 0) { throw 'Cargo lockfile generation failed' }
+          if ($LASTEXITCODE -ne 0) { throw 'Lockfile failed' }
           cargo +stable test --locked --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed' }
           cargo +stable build --locked --release --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE -ne 0) { throw 'Rust build failed' }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Chromium UI regression and mouse gesture tests
+        working-directory: work
+        run: |
+          python -m pip install playwright
+          if ($LASTEXITCODE -ne 0) { throw 'Playwright install failed' }
+          python -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Chromium install failed' }
+          python test_ui.py
+          if ($LASTEXITCODE -ne 0) { throw 'UI tests failed' }
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: false
       - name: Package precompiled installer
+        id: package
         working-directory: work
         env:
           GO111MODULE: 'off'
@@ -48,14 +73,42 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           $v = [regex]::Match((Get-Content project/Cargo.toml -Raw),'(?m)^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"').Groups[1].Value
           if (!$v) { throw 'Invalid package version' }
+          if (!(Select-String -Path setup.go -SimpleMatch ('const version = "' + $v + '"'))) { throw 'Installer version mismatch' }
           $name = "Hwigoat_Rust_Setup_v${v}_x64.exe"
           go build -trimpath -ldflags '-s -w' -o "dist/$name" .
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
           Copy-Item project/Cargo.lock dist/Cargo.lock
           $hash = (Get-FileHash "dist/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $name" | Set-Content -Encoding ascii dist/SHA256.txt
+          "version=$v" >> $env:GITHUB_OUTPUT
       - uses: actions/upload-artifact@v4
         with:
           name: Hwigoat-Rust-Windows-x64
           path: work/dist/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UI-test-previews
+          path: |
+            work/frame.png
+            work/preview.png
+          if-no-files-found: error
+  draft:
+    if: github.event_name == 'workflow_dispatch' && inputs.draft_release && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Hwigoat-Rust-Windows-x64
+          path: dist
+      - name: Create draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          REPO: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          gh release create "v$VERSION" dist/*.exe dist/SHA256.txt dist/Cargo.lock --repo "$REPO" --target "$COMMIT" --title "Hwigoat Rust $VERSION Public Beta" --draft --prerelease --notes "Unsigned candidate. Native Windows installation, window gestures and WebView2 smoke test must be verified before publishing. Automatic update is not implemented."
