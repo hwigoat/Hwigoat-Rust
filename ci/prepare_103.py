@@ -83,17 +83,16 @@ edit("setup.go",[
 ("return nil\n\t})\n\tif e != nil {\n\t\treturn e\n\t}\n\tlogf(\"PATCH VERIFIED:",'''self,err:=os.Executable()
         if err!=nil{return err}
         if err=copyAtomic(self,filepath.Join(root,"update-agent-"+version+".exe"));err!=nil{return err}
-        return nil
+        return writeInstalledVersion(root,version)
     })
     if e != nil {
         return e
     }
-    if e=writeInstalledVersion(root,version);e!=nil{return e}
     logf("PATCH VERIFIED:''',1),
 ('logf("Starting the updated browser using the normal user profile.")','if os.Getenv("HWIGOAT_AUTOMATIC")=="1"{return nil}\n\tlogf("Starting the updated browser using the normal user profile.")',1),
 ('unlock, err := acquireSetupLock(root)','if handleUpdateMode(root){return}\n\tautomatic:=len(os.Args)==2&&os.Args[1]=="--automatic"\n\tif automatic{_ = os.Setenv("HWIGOAT_AUTOMATIC","1")}\n\tunlock, err := acquireSetupLock(root)',1),
 ("_, _ = bufio.NewReader(os.Stdin).ReadString('\\n')","if !automatic{_, _ = bufio.NewReader(os.Stdin).ReadString('\\n')}",3),
-('logf("HWIGOAT RUST %s | Windows x64 precompiled in-place patch installer", version)','if automatic && !newer(version,installedVersion(root)){logf("Automatic update no longer newer; skipped");return}\n\tlogf("HWIGOAT RUST %s | Windows x64 precompiled in-place patch installer", version)',1)
+('logf("HWIGOAT RUST %s | Windows x64 precompiled in-place patch installer", version)','if automatic && !newer(version,recordedVersion(root)){logf("Automatic update no longer newer; skipped");return}\n\tlogf("HWIGOAT RUST %s | Windows x64 precompiled in-place patch installer", version)',1)
 ])
 for name in ("update.go","update_test.go"):
     shutil.copyfile(here/name,root/name)
