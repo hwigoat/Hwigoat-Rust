@@ -1,0 +1,61 @@
+name: Windows precompiled installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - hwigoat-source.zip
+      - .github/workflows/windows-build.yml
+permissions:
+  contents: read
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source
+        run: |
+          if (!(Test-Path hwigoat-source.zip)) { throw 'Upload hwigoat-source.zip to repository root first.' }
+          Expand-Archive -LiteralPath hwigoat-source.zip -DestinationPath work
+      - name: Rust tests and optimized binary
+        working-directory: work/project
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add x86_64-pc-windows-msvc --toolchain stable
+          cargo +stable generate-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Cargo lockfile generation failed' }
+          cargo +stable test --locked --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed' }
+          cargo +stable build --locked --release --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw 'Rust build failed' }
+      - name: Package precompiled installer
+        working-directory: work
+        env:
+          GO111MODULE: 'off'
+        run: |
+          Copy-Item project/target/x86_64-pc-windows-msvc/release/hwigoat-rust.exe prebuilt.exe
+          go test ./...
+          if ($LASTEXITCODE -ne 0) { throw 'Installer tests failed' }
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { throw 'Installer vet failed' }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $v = [regex]::Match((Get-Content project/Cargo.toml -Raw),'(?m)^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"').Groups[1].Value
+          if (!$v) { throw 'Invalid package version' }
+          $name = "Hwigoat_Rust_Setup_v${v}_x64.exe"
+          go build -trimpath -ldflags '-s -w' -o "dist/$name" .
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          Copy-Item project/Cargo.lock dist/Cargo.lock
+          $hash = (Get-FileHash "dist/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $name" | Set-Content -Encoding ascii dist/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hwigoat-Rust-Windows-x64
+          path: work/dist/
+          if-no-files-found: error
